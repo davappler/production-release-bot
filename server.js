@@ -4,6 +4,8 @@ const { google } = require('googleapis');
 
 const app = express();
 
+// Slack sends commands as application/x-www-form-urlencoded
+// Must be parsed BEFORE any route handlers
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
@@ -24,18 +26,23 @@ app.get('/', (req, res) => {
 });
 
 app.post('/slack/release', (req, res) => {
-  const text = req.body.text;
-  const user = req.body.user_name;
+  // --- FIX 1: Respond to Slack IMMEDIATELY (within 3 seconds) ---
+  // Slack requires a 200 OK fast — do this before any async work.
+  const text = req.body.text || '(no text provided)';
+  const user = req.body.user_name || 'unknown';
 
-  console.log('Slack command received:', text);
+  console.log('Slack command received from:', user, '| text:', text);
 
-  // Respond immediately to Slack (prevents timeout)
-  res.status(200).send(`🚀 Creating release event: ${text}`);
-
-  // Run event creation asynchronously
-  setImmediate(() => {
-    createCalendarEvent(text, user);
+  // --- FIX 2: Use correct Slack response format ---
+  // Slack expects JSON with response_type and text fields,
+  // not a plain string, to show the message in channel.
+  res.status(200).json({
+    response_type: 'in_channel', // use 'ephemeral' to show only to the user
+    text: `🚀 Creating release event: *${text}*`,
   });
+
+  // --- FIX 3: Fire-and-forget async work AFTER responding ---
+  createCalendarEvent(text, user);
 });
 
 async function createCalendarEvent(text, user) {
@@ -53,23 +60,36 @@ async function createCalendarEvent(text, user) {
 
     const event = {
       summary: `🚀 Release: ${text}`,
-      description: `Created from Slack by ${user}`,
+      description: `Created from Slack by @${user}`,
       start: { date: today },
       end: { date: today },
     };
 
-    console.log('Creating calendar event...');
+    console.log('Creating calendar event for date:', today);
 
     const response = await calendar.events.insert({
       calendarId: CALENDAR_ID,
       resource: event,
     });
 
-    console.log('Event created:', response.data.htmlLink);
+    console.log('✅ Event created:', response.data.htmlLink);
   } catch (err) {
-    console.error('Calendar error:', err);
+    console.error('❌ Calendar error:', err.message || err);
   }
 }
+
+// --- FIX 4: Global error handler to prevent silent crashes ---
+// If any middleware throws, this catches it and still returns 200
+// so Slack doesn't retry and timeout.
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  if (!res.headersSent) {
+    res.status(200).json({
+      response_type: 'ephemeral',
+      text: '⚠️ Something went wrong on the server.',
+    });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
