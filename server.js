@@ -25,7 +25,7 @@ app.get('/', (req, res) => {
   res.send('Bot running');
 });
 
-app.post('/slack/release', (req, res) => {
+app.post('/slack/release', async (req, res) => {
   // --- FIX 1: Respond to Slack IMMEDIATELY (within 3 seconds) ---
   // Slack requires a 200 OK fast — do this before any async work.
   const text = req.body.text || '(no text provided)';
@@ -42,7 +42,7 @@ app.post('/slack/release', (req, res) => {
   });
 
   // --- FIX 3: Fire-and-forget async work AFTER responding ---
-  createCalendarEvent(text, user);
+  await createCalendarEvent(text, user);
 });
 
 async function createCalendarEvent(text, user) {
