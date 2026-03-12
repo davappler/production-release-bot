@@ -16,21 +16,23 @@ const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/calendar'],
 });
 
-// Health check route
+// Health route
 app.get('/', (req, res) => {
-  res.send('Release bot is running 🚀');
+  res.send('Release bot running 🚀');
 });
 
-// Slack slash command endpoint
-app.post('/slack/release', async (req, res) => {
+app.post('/slack/release', (req, res) => {
   const text = req.body.text;
+  const user = req.body.user_name;
 
   // Respond immediately to Slack
-  res.json({
-    response_type: 'ephemeral',
-    text: `🚀 Creating release event: *${text}*`,
-  });
+  res.status(200).send(`🚀 Creating release event: ${text}`);
 
+  // Run calendar creation asynchronously
+  createCalendarEvent(text, user);
+});
+
+async function createCalendarEvent(text, user) {
   try {
     const authClient = await auth.getClient();
 
@@ -43,7 +45,7 @@ app.post('/slack/release', async (req, res) => {
 
     const event = {
       summary: `🚀 Release: ${text}`,
-      description: `Created from Slack by ${req.body.user_name}`,
+      description: `Created from Slack by ${user}`,
       start: { date: today },
       end: { date: today },
     };
@@ -54,10 +56,10 @@ app.post('/slack/release', async (req, res) => {
     });
 
     console.log('Release event created:', text);
-  } catch (error) {
-    console.error('Error creating calendar event:', error);
+  } catch (err) {
+    console.error('Calendar error:', err);
   }
-});
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
