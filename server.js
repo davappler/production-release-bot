@@ -10,8 +10,10 @@ app.use(bodyParser.json());
 const PORT = process.env.PORT || 3000;
 const CALENDAR_ID = process.env.CALENDAR_ID;
 
+console.log('Server starting...');
 console.log('Calendar ID:', CALENDAR_ID);
 
+// Google auth
 const auth = new google.auth.GoogleAuth({
   keyFile: 'service-account.json',
   scopes: ['https://www.googleapis.com/auth/calendar'],
@@ -27,14 +29,18 @@ app.post('/slack/release', (req, res) => {
 
   console.log('Slack command received:', text);
 
-  res.send(`🚀 Creating release event: ${text}`);
+  // Respond immediately to Slack (prevents timeout)
+  res.status(200).send(`🚀 Creating release event: ${text}`);
 
-  createEvent(text, user);
+  // Run event creation asynchronously
+  setImmediate(() => {
+    createCalendarEvent(text, user);
+  });
 });
 
-async function createEvent(text, user) {
+async function createCalendarEvent(text, user) {
   try {
-    console.log('Starting Google auth...');
+    console.log('Authenticating with Google...');
 
     const authClient = await auth.getClient();
 
@@ -47,7 +53,7 @@ async function createEvent(text, user) {
 
     const event = {
       summary: `🚀 Release: ${text}`,
-      description: `Created by ${user}`,
+      description: `Created from Slack by ${user}`,
       start: { date: today },
       end: { date: today },
     };
@@ -60,8 +66,8 @@ async function createEvent(text, user) {
     });
 
     console.log('Event created:', response.data.htmlLink);
-  } catch (error) {
-    console.error('Calendar error:', error);
+  } catch (err) {
+    console.error('Calendar error:', err);
   }
 }
 
