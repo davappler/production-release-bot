@@ -58,16 +58,17 @@ async function createCalendarEvent(text, user) {
       auth: authClient,
     });
 
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const tenMinsLater = new Date(now.getTime() + 10 * 60 * 1000);
 
     const event = {
       summary: `🚀 Release: ${text}`,
       description: `Created from Slack by @${user}`,
-      start: { date: today },
-      end: { date: today },
+      start: { dateTime: now.toISOString(), timeZone: 'Europe/London' },
+      end: { dateTime: tenMinsLater.toISOString(), timeZone: 'Europe/London' },
     };
 
-    console.log('Creating calendar event for date:', today);
+    console.log('Creating calendar event at:', now.toISOString());
 
     const response = await calendar.events.insert({
       calendarId: CALENDAR_ID,
